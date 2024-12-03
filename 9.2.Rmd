@@ -1,0 +1,117 @@
+install.packages("caret")
+
+library(dplyr)
+library(caret)
+
+df <- read.csv("LabWork by R about MAL dataset/Processed_AnimeList_Cleaned.csv")
+
+head(df)
+summary(df)
+
+```{r}
+# Выбор переменных
+selected_vars <- c("type", "source", "episodes", "status", "aired_year", "duration_minutes", 
+                   "score", "scored_by", "rank", "popularity", "members", "favorites", "main_genre")
+
+df_selected <- df_na_removed[, selected_vars]
+
+# Просмотр первых строк выбранного датафрейма
+head(df_selected)
+```
+```{r}
+# Перемешивание данных
+set.seed(123)  # Для воспроизводимости результатов
+df_shuffled <- df_selected[sample(1:nrow(df_selected)), ]
+
+# Просмотр первых строк перемешанного датафрейма
+head(df_shuffled)
+
+```
+```{r}
+# Размер датафрейма
+dim_df <- dim(df_shuffled)
+cat("Размер всего набора данных:", dim_df, "\n")
+
+# Разделение данных
+dt <- sort(sample(nrow(df_shuffled), nrow(df_shuffled) * 0.7))
+train <- df_shuffled[dt, ]
+test <- df_shuffled[-dt, ]
+
+# Проверка размеров выборок
+cat("Размер обучающей выборки:", dim(train), "\n")
+cat("Размер тестовой выборки:", dim(test), "\n")
+
+```
+```{r}
+# Преобразуем 'type' в фактор в обучающей выборке
+train$type <- factor(train$type)
+
+# Используем уровни из обучающей выборки для кодирования тестовой выборки
+test$type <- factor(test$type, levels = levels(train$type))
+
+# Преобразуем факторные переменные в числовые значения
+train$type <- as.integer(train$type)
+test$type <- as.integer(test$type)
+
+```
+
+```{r}
+# Проверяем уникальные значения после кодирования
+cat("Уникальные значения 'type' в обучающей выборке:", unique(train$type), "\n")
+cat("Уникальные значения 'type' в тестовой выборке:", unique(test$type), "\n")
+
+```
+```{r}
+# Определяем категориальные переменные
+categorical_vars <- c("source", "status", "main_genre")
+
+```
+
+```{r}
+# Объединяем обучающую и тестовую выборки для согласованного кодирования
+train$set <- "train"
+test$set <- "test"
+combined_df <- rbind(train, test)
+
+# Создаем формулу для кодирования категориальных переменных
+formula <- as.formula(paste("~", paste(categorical_vars, collapse = "+")))
+
+# Создаем объект dummyVars
+dummies <- dummyVars(formula, data = combined_df)
+
+# Применяем кодирование к объединенным данным
+encoded_vars <- predict(dummies, newdata = combined_df)
+
+# Преобразуем в датафрейм
+encoded_vars_df <- as.data.frame(encoded_vars)
+
+# Удаляем исходные категориальные переменные из combined_df
+combined_df <- combined_df %>% select(-all_of(categorical_vars))
+
+# Соединяем закодированные переменные с остальными данными
+combined_encoded <- cbind(combined_df, encoded_vars_df)
+
+# Разделяем обратно на обучающую и тестовую выборки
+train_encoded <- combined_encoded %>% filter(set == "train") %>% select(-set)
+test_encoded <- combined_encoded %>% filter(set == "test") %>% select(-set)
+
+```
+```{r}
+cat("Размер закодированной обучающей выборки:", dim(train_encoded), "\n")
+cat("Размер закодированной тестовой выборки:", dim(test_encoded), "\n")
+
+```
+
+```{r}
+# Проверяем совпадение имен столбцов
+identical(names(train_encoded), names(test_encoded))
+
+```
+
+```{r}
+write.csv(train_encoded, "train_encoded.csv", row.names = FALSE)
+write.csv(test_encoded, "test_encoded.csv", row.names = FALSE)
+cat("Закодированные данные сохранены в файлы 'train_encoded.csv' и 'test_encoded.csv'.\n")
+
+```
+
